@@ -5,6 +5,8 @@ require 'uri'
 module Stalker
 	extend self
 
+  class NotConnected < RuntimeError; end
+
 	def enqueue(job, args={}, opts={})
 		pri   = opts[:pri]   || 65536
 		delay = opts[:delay] || 0
@@ -13,6 +15,7 @@ module Stalker
 		beanstalk.put [ job, args ].to_json, pri, delay, ttr
 	rescue Beanstalk::NotConnected => e
 		failed_connection(e)
+		raise NotConnected, "Failed to connect to beanstalkd: #{beanstalk_url}"
 	end
 
 	def job(j, &block)
@@ -46,6 +49,7 @@ module Stalker
 		end
 	rescue Beanstalk::NotConnected => e
 		failed_connection(e)
+		exit 1
 	end
 
 	def work(jobs=nil)
@@ -64,6 +68,7 @@ module Stalker
 		log_job_end(name)
 	rescue Beanstalk::NotConnected => e
 		failed_connection(e)
+		exit 1
 	rescue SystemExit
 		raise
 	rescue => e
@@ -77,7 +82,6 @@ module Stalker
 		log_error exception_message(e)
 		log_error "*** Failed connection to #{beanstalk_url}"
 		log_error "*** Check that beanstalkd is running (or set a different BEANSTALK_URL)"
-		exit 1
 	end
 
 	def log_job_begin(name, args)
